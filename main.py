@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import time
 import schedule
-import threading
+from threading import Thread
 
 app = Flask(__name__)
 
@@ -33,23 +33,27 @@ async def make_requests():
     print(f"Requests made at {time.ctime()}")
     return results
 
-def scheduled_task():
+def run_async(coro):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+def scheduled_task():
     while True:
         schedule.run_pending()
         time.sleep(1)
 
 @app.route('/status')
-async def status():
-    results = await make_requests()
+def status():
+    results = run_async(make_requests())
     return jsonify(results)
 
 def run_schedule():
-    asyncio.run(make_requests())  # Run immediately
-    schedule.every(5).minutes.do(lambda: asyncio.run(make_requests()))
-    threading.Thread(target=scheduled_task, daemon=True).start()
+    run_async(make_requests())  # Run immediately
+    schedule.every(5).minutes.do(lambda: run_async(make_requests()))
+    Thread(target=scheduled_task, daemon=True).start()
+
+run_schedule()
 
 if __name__ == "__main__":
-    run_schedule()
     app.run(debug=True)
